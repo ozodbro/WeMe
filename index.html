@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telegram Web Chat</title>
+    <!-- Firebase SDK (v8.10.1) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #0e1621;
+            color: #ffffff;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- BOSHQA REJIM BANNERI --- */
+        .status-banner {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #e67e22;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        /* --- KIRISH / RO'YXATDAN O'TISH OYNASI --- */
+        .auth-container {
+            background-color: #17212b;
+            padding: 30px 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 380px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            border: 1px solid #24303f;
+            z-index: 10;
+        }
+
+        .auth-container h2 {
+            margin-bottom: 20px;
+            color: #5288c1;
+            font-size: 22px;
+        }
+
+        .auth-container input {
+            width: 100%;
+            background-color: #24303f;
+            border: 1px solid #2f3e50;
+            padding: 14px;
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 14px;
+            outline: none;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        .auth-container input:focus {
+            border-color: #5288c1;
+        }
+
+        .auth-container button {
+            width: 100%;
+            background-color: #5288c1;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .auth-container button:active {
+            background-color: #3e6e9e;
+        }
+
+        .auth-container .toggle-link {
+            color: #7f91a4;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 16px;
+            display: inline-block;
+        }
+
+        .auth-container .toggle-link:hover {
+            color: #5288c1;
+            text-decoration: underline;
+        }
+
+        /* --- ASOSIY CHAT ARXITEKTURASI --- */
+        .chat-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+        }
+
+        /* Chap Panel (Sidebar) */
+        .sidebar {
+            width: 32%;
+            min-width: 300px;
+            background-color: #17212b;
+            border-right: 1px solid #101921;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            background-color: #17212b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #101921;
+            height: 60px;
+        }
+
+        .sidebar-header .user-title {
+            font-weight: bold;
+            color: #5288c1;
+            font-size: 16px;
+        }
+
+        .logout-btn {
+            background-color: #e53935;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .user-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #101921;
+            transition: background-color 0.2s;
+        }
+
+        .user-item:hover, .user-item.active {
+            background-color: #202b36;
+        }
+
+        .user-info-block {
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .avatar {
+            width: 42px;
+            height: 42px;
+            background-color: #2b5278;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            margin-right: 12px;
+            font-size: 16px;
+            overflow: hidden;
+        }
+
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-item span {
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        /* Chiqarish tugmasi */
+        .kick-btn {
+            background-color: rgba(229, 57, 53, 0.15);
+            color: #f44336;
+            border: 1px solid #e53935;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .kick-btn:hover {
+            background-color: #e53935;
+            color: white;
+        }
+
+        /* O'ng Panel (Suhbat maydoni) */
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-blend-mode: overlay;
+            background-color: rgba(14, 22, 33, 0.96);
+            position: relative;
+        }
+
+        .chat-header {
+            background-color: #17212b;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #101921;
+            height: 60px;
+        }
+
+        .chat-header .avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #5288c1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
+            font-size: 16px;
+            overflow: hidden;
+        }
+
+        .chat-header .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-header .name {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .chat-area {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .no-chat-selected {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7f91a4;
+            font-size: 15px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Xabarlar dizayni */
+        .message {
+            max-width: 70%;
+            padding: 8px 14px;
+            border-radius: 12px;
+            font-size: 15px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            position: relative;
+        }
+
+        .message.received {
+            background-color: #182533;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message.sent {
+            background-color: #2b5278;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        /* Rasm xabarlar uchun maxsus uslub */
+        .message img.chat-img {
+            max-width: 100%;
+            max-height: 240px;
+            border-radius: 8px;
+            display: block;
+            margin: 4px 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .message img.chat-img:hover {
+            transform: scale(1.02);
+        }
+
+        .message .time {
+            font-size: 10px;
+            color: #7f91a4;
+            text-align: right;
+            margin-top: 4px;
+            display: block;
+        }
+
+        /* Xabar yuborish qismi */
+        .input-area {
+            background-color: #17212b;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            background-color: #24303f;
+            border: none;
+            outline: none;
+            padding: 12px 18px;
+            border-radius: 24px;
+            color: #ffffff;
+            font-size: 15px;
+        }
+
+        /* Rasm biriktirish tugmasi */
+        .attach-btn {
+            background-color: #24303f;
+            color: #7f91a4;
+            border: none;
+            outline: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: 0.2s;
+        }
+
+        .attach-btn:hover {
+            background-color: #2b5278;
+            color: #ffffff;
+        }
+
+        .input-area button.send-btn {
+            background-color: #5288c1;
+            border: none;
+            outline: none;
+            color: white;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        /* --- RASM KATTALASHTIRISH MODAL OYNASI --- */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+        }
+
+        /* Mobil moslashuvchanlik */
+        @media (max-width: 650px) {
+            .sidebar {
+                width: 35%;
+                min-width: 140px;
+            }
+            .sidebar-header .user-title {
+                font-size: 13px;
+            }
+            .logout-btn {
+                padding: 4px 6px;
+                font-size: 9px;
+            }
+            .user-item {
+                padding: 10px 6px;
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+            }
+            .user-info-block {
+                flex-direction: column;
+            }
+            .user-item .avatar {
+                margin-right: 0;
+                margin-bottom: 6px;
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+            .user-item span {
+                font-size: 12px;
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .kick-btn {
+                width: 100%;
+                font-size: 9px;
+                padding: 3px 5px;
+            }
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="status-banner" id="statusBanner">Offline Simulyatsiya Rejimi</div>
+
+    <!-- RASM KATTALASHTIRISH OYNASI -->
+    <div class="image-modal" id="imageModal" onclick="closeFullImage()">
+        <img id="modalImg" src="" alt="Kattalashtirilgan rasm">
+    </div>
+
+    <!-- 1. RO'YXATDAN O'TISH / KIRISH -->
+    <div class="auth-container" id="authBox">
+        <h2 id="authTitle">Akkauntga kirish</h2>
+        <input type="text" id="username" placeholder="Ismingiz (Username)">
+        <input type="password" id="password" placeholder="Parolingiz">
+        <input type="text" id="avatarUrl" placeholder="Rasm URL havolasi (ixtiyoriy)" style="display: none;">
+        <button id="authBtn" onclick="handleAuth()">Kirish</button>
+        <p class="toggle-link" id="toggleAuth" onclick="toggleMode()">Akkaunt yaratish</p>
+    </div>
+
+    <!-- 2. CHAT TIZIMI -->
+    <div class="chat-container" id="chatBox" style="display: none;">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-title" id="myUsername">Men</div>
+                <button class="logout-btn" onclick="logout()">Chiqish</button>
+            </div>
+            <div class="user-list" id="userListArea"></div>
+        </div>
+
+        <div class="chat-main">
+            <div class="no-chat-selected" id="noChatSelected">
+                Suhbatlashish uchun chapdan kontaktni tanlang
+            </div>
+
+            <div id="activeChatArea" style="display: none; flex-direction: column; height: 100%;">
+                <div class="chat-header">
+                    <div class="avatar" id="activeChatAvatar">?</div>
+                    <div class="name" id="activeChatName">Suhbatdosh</div>
+                </div>
+                
+                <div class="chat-area" id="chatMessages"></div>
+
+                <div class="input-area">
+                    <!-- Yashirin rasm yuklash inputi -->
+                    <input type="file" id="imageAttachment" accept="image/*" style="display: none;" onchange="sendImageMessage(event)">
+                    <button class="attach-btn" onclick="document.getElementById('imageAttachment').click()">📎</button>
+                    
+                    <input type="text" id="messageInput" placeholder="Xabar yozing..." autocomplete="off">
+                    <button class="send-btn" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ Agar onlayn ishlatmoqchi bo'lsangiz, o'z Firebase kalitlaringizni shu yerga yozing:
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        let database = null;
+        let isFirebaseActive = false;
+
+        // Firebase-ni tekshirib ishga tushirish
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                isFirebaseActive = true;
+                console.log("Firebase Onlayn tizimi faollashtirildi.");
+            } catch (e) {
+                console.error("Firebase ulanish xatosi, Simulyatsiyaga o'tiladi:", e);
+            }
+        }
+
+        if (!isFirebaseActive) {
+            document.getElementById('statusBanner').style.display = 'block';
+            console.log("Simulyatsiya (LocalStorage) rejimi faol.");
+        }
+
+        let isLoginMode = true;
+        let currentUser = null;
+        let targetUser = null; 
+        let currentChatRoomId = null; 
+
+        window.onload = function() {
+            const savedUser = localStorage.getItem('chat_user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                openChat();
+            }
+            
+            if (!isFirebaseActive) {
+                window.addEventListener('storage', function(e) {
+                    if (e.key === 'local_chats' || e.key === 'local_users') {
+                        if (currentUser) {
+                            loadUsersList();
+                            if (currentChatRoomId) loadPrivateMessages();
+                        }
+                    }
+                });
+            }
+        };
+
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('authTitle').innerText = isLoginMode ? "Akkauntga kirish" : "Ro'yxatdan o'tish";
+            document.getElementById('authBtn').innerText = isLoginMode ? "Kirish" : "Ro'yxatdan o'tish";
+            document.getElementById('toggleAuth').innerText = isLoginMode ? "Akkaunt yaratish" : "Menda akkaunt bor (Kirish)";
+            document.getElementById('avatarUrl').style.display = isLoginMode ? "none" : "block";
+        }
+
+        // Avtorizatsiya (Kirish / Ro'yxatdan o'tish)
+        function handleAuth() {
+            const user = document.getElementById('username').value.trim().toLowerCase().replace(/[^a-z0-9_]/g, ""); 
+            const pass = document.getElementById('password').value.trim();
+            const avatar = document.getElementById('avatarUrl').value.trim();
+
+            if (!user || !pass) {
+                alert("Iltimos, maydonlarni to'ldiring!");
+                return;
+            }
+
+            if (isFirebaseActive) {
+                // FIREBASE ONLINE REJIM
+                const userRef = database.ref('users/' + user);
+                if (isLoginMode) {
+                    userRef.once('value').then((snapshot) => {
+                        if (snapshot.exists() && snapshot.val().password === pass) {
+                            currentUser = { username: user, avatar: snapshot.val().avatar || "" };
+                            localStorage.setItem('chat_user', JSON.stringify(currentUser));
+                            openChat();
+                        } else {
+                            alert("Ism yoki parol xato!");
+                        }
+                    });
+                } else {
+                    userRef.once('value').then((snapshot) => {
+                        if (snapshot.exists()) {
+                            alert("Bu foydalanuvchi nomi band!");
+                        } else {
+                            userRef.set({ password: pass, avatar: avatar }).then(() => {
+                                currentUser = { username: user, avatar: avatar };
+                                localStorage.setItem('chat_user', JSON.stringify(currentUser));
+                                alert("Siz muvaffaqiyatli ro'yxatdan o'tdingiz!");
+                                openChat();
+                            });
+                        }
+                    });
+                }
+            } else {
+                // LOCAL STORAGE SIMULYATSIYA REJIMI
+                let localUsers = JSON.parse(localStorage.getItem('local_users') || "{}");
+                if (isLoginMode) {
+                    if (localUsers[user] && localUsers[user].password === pass) {
+                        currentUser = { username: user, avatar: localUsers[user].avatar || "" };
+                        localStorage.setItem('chat_user', JSON.stringify(currentUser));
+                        openChat();
+                    } else {
+                        alert("Ism yoki parol xato! (Simulyatsiya)");
+                    }
+                } else {
+                    if (localUsers[user]) {
+                        alert("Bu foydalanuvchi nomi band!");
+                    } else {
+                        localUsers[user] = { password: pass, avatar: avatar };
+                        localStorage.setItem('local_users', JSON.stringify(localUsers));
+                        currentUser = { username: user, avatar: avatar };
+                        localStorage.setItem('chat_user', JSON.stringify(currentUser));
+                        alert("Siz muvaffaqiyatli ro'yxatdan o'tdingiz! (Simulyatsiya)");
+                        openChat();
+                    }
+                }
+            }
+        }
+
+        function openChat() {
+            document.getElementById('authBox').style.display = 'none';
+            document.getElementById('chatBox').style.display = 'flex';
+            document.getElementById('myUsername').innerText = currentUser.username.toUpperCase();
+            loadUsersList();
+        }
+
+        // Kontaktlarni yuklash
+        function loadUsersList() {
+            const listArea = document.getElementById('userListArea');
+            listArea.innerHTML = "";
+
+            if (isFirebaseActive) {
+                const usersRef = database.ref('users');
+                usersRef.on('value', (snapshot) => {
+                    listArea.innerHTML = "";
+                    snapshot.forEach((childSnapshot) => {
+                        const username = childSnapshot.key;
+                        if (username === currentUser.username) return;
+                        
+                        const userData = childSnapshot.val();
+                        appendUserItem(username, userData.avatar || "", listArea);
+                    });
+                });
+            } else {
+                let localUsers = JSON.parse(localStorage.getItem('local_users') || "{}");
+                Object.keys(localUsers).forEach(username => {
+                    if (username === currentUser.username) return;
+                    appendUserItem(username, localUsers[username].avatar || "", listArea);
+                });
+            }
+        }
+
+        // Foydalanuvchini ro'yxatga qo'shish
+        function appendUserItem(username, avatarUrl, container) {
+            const userItem = document.createElement('div');
+            userItem.classList.add('user-item');
+            if (targetUser === username) userItem.classList.add('active');
+            
+            // Avatar qismi
+            let avatarContent = username[0].toUpperCase();
+            if (avatarUrl && avatarUrl !== "") {
+                avatarContent = `<img src="${avatarUrl}" alt="avatar">`;
+            }
+
+            userItem.innerHTML = `
+                <div class="user-info-block">
+                    <div class="avatar">${avatarContent}</div>
+                    <span>${username.toUpperCase()}</span>
+                </div>
+                <button class="kick-btn" onclick="removeUser(event, '${username}')">Chiqarish</button>
+            `;
+
+            // Item bosilganda suhbatni ochish
+            userItem.onclick = function() {
+                document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+                userItem.classList.add('active');
+                startPrivateChat(username, avatarUrl);
+            };
+
+            container.appendChild(userItem);
+        }
+
+        // Foydalanuvchini bazadan butunlay o'chirish (Chiqarish funksiyasi)
+        function removeUser(event, usernameToKick) {
+            event.stopPropagation(); // Chat ochilib ketmasligi uchun eventni to'xtatamiz
+            
+            const confirmKick = confirm(`Haqiqatan ham ${usernameToKick.toUpperCase()} foydalanuvchisini chatdan chiqarib yubormoqchimisiz?`);
+            if (!confirmKick) return;
+
+            if (isFirebaseActive) {
+                database.ref('users/' + usernameToKick).remove().then(() => {
+                    alert(`${usernameToKick.toUpperCase()} tizimdan chiqarib yuborildi.`);
+                    if (targetUser === usernameToKick) {
+                        resetChatArea();
+                    }
+                }).catch(err => {
+                    console.error("O'chirishda xatolik:", err);
+                });
+            } else {
+                let localUsers = JSON.parse(localStorage.getItem('local_users') || "{}");
+                if (localUsers[usernameToKick]) {
+                    delete localUsers[usernameToKick];
+                    localStorage.setItem('local_users', JSON.stringify(localUsers));
+                    alert(`${usernameToKick.toUpperCase()} simulyatsiyadan chiqarib yuborildi.`);
+                    loadUsersList();
+                    if (targetUser === usernameToKick) {
+                        resetChatArea();
+                    }
+                }
+            }
+        }
+
+        function resetChatArea() {
+            document.getElementById('noChatSelected').style.display = 'flex';
+            document.getElementById('activeChatArea').style.display = 'none';
+            targetUser = null;
+            currentChatRoomId = null;
+        }
+
+        // Shaxsiy suhbatni boshlash
+        function startPrivateChat(selectedUser, avatarUrl) {
+            targetUser = selectedUser;
+            currentChatRoomId = currentUser.username < targetUser 
+                ? `${currentUser.username}_${targetUser}` 
+                : `${targetUser}_${currentUser.username}`;
+
+            document.getElementById('noChatSelected').style.display = 'none';
+            document.getElementById('activeChatArea').style.display = 'flex';
+            
+            document.getElementById('activeChatName').innerText = targetUser.toUpperCase();
+            
+            const headerAvatar = document.getElementById('activeChatAvatar');
+            if (avatarUrl && avatarUrl !== "") {
+                headerAvatar.innerHTML = `<img src="${avatarUrl}" alt="avatar">`;
+            } else {
+                headerAvatar.innerText = targetUser[0].toUpperCase();
+            }
+
+            loadPrivateMessages();
+        }
+
+        // Xabarlarni yuklash
+        let currentMessagesListener = null;
+        function loadPrivateMessages() {
+            const chatMessagesDiv = document.getElementById('chatMessages');
+            chatMessagesDiv.innerHTML = "";
+
+            if (isFirebaseActive) {
+                if (currentMessagesListener) {
+                    database.ref('chats/' + currentChatRoomId).off('value', currentMessagesListener);
+                }
+                const messagesRef = database.ref('chats/' + currentChatRoomId).limitToLast(100);
+                currentMessagesListener = messagesRef.on('value', (snapshot) => {
+                    chatMessagesDiv.innerHTML = "";
+                    snapshot.forEach((childSnapshot) => {
+                        renderMessage(childSnapshot.val(), chatMessagesDiv);
+                    });
+                    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+                });
+            } else {
+                let localChats = JSON.parse(localStorage.getItem('local_chats') || "{}");
+                let roomChats = localChats[currentChatRoomId] || [];
+                roomChats.forEach(data => {
+                    renderMessage(data, chatMessagesDiv);
+                });
+                chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+            }
+        }
+
+        // Xabarni vizual ko'rsatish
+        function renderMessage(data, container) {
+            const isMe = data.sender === currentUser.username;
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', isMe ? 'sent' : 'received');
+
+            let messageContent = `<div>${data.text}</div>`;
+            
+            // Agar xabar turi rasm bo'lsa, uni img tegi orqali chiqaramiz
+            if (data.type === "image") {
+                messageContent = `<img class="chat-img" src="${data.text}" alt="Yuborilgan rasm" onclick="openFullImage('${data.text}')">`;
+            }
+
+            messageDiv.innerHTML = `
+                ${messageContent}
+                <span class="time">${data.time}</span>
+            `;
+            container.appendChild(messageDiv);
+        }
+
+        // Matnli xabar yuborish
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (text === "" || !currentChatRoomId) return;
+
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+            const msgData = {
+                sender: currentUser.username,
+                text: text,
+                type: "text",
+                time: timeStr,
+                timestamp: Date.now()
+            };
+
+            saveMessageToDb(msgData);
+
+            input.value = "";
+            input.focus();
+        }
+
+        // Galereyadan rasm tanlanganda uni yuborish
+        function sendImageMessage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Bazada xatolik bo'lmasligi uchun juda katta hajmdagi rasmlarni cheklaymiz (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                alert("Rasm hajmi juda katta! Iltimos, 2MB dan kichik rasm tanlang.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Image = e.target.result; // Rasmni matn (Base64) shakliga o'tkazamiz
+                const now = new Date();
+                const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+                const msgData = {
+                    sender: currentUser.username,
+                    text: base64Image,
+                    type: "image",
+                    time: timeStr,
+                    timestamp: Date.now()
+                };
+
+                saveMessageToDb(msgData);
+            };
+            
+            reader.readAsDataURL(file);
+            event.target.value = ""; // Inputni tozalash (ketma-ket bir xil rasm tanlansa ham ishlashi uchun)
+        }
+
+        // Xabarni tegishli bazaga yozish funksiyasi
+        function saveMessageToDb(msgData) {
+            if (isFirebaseActive) {
+                const newMsgRef = database.ref('chats/' + currentChatRoomId).push();
+                newMsgRef.set(msgData);
+            } else {
+                let localChats = JSON.parse(localStorage.getItem('local_chats') || "{}");
+                if (!localChats[currentChatRoomId]) {
+                    localChats[currentChatRoomId] = [];
+                }
+                localChats[currentChatRoomId].push(msgData);
+                localStorage.setItem('local_chats', JSON.stringify(localChats));
+                loadPrivateMessages();
+            }
+        }
+
+        // Rasmni ekranda kattalashtirish
+        function openFullImage(src) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImg');
+            modal.style.display = "flex";
+            modalImg.src = src;
+        }
+
+        // Kattalashtirilgan rasmni yopish
+        function closeFullImage() {
+            document.getElementById('imageModal').style.display = "none";
+        }
+
+        function logout() {
+            localStorage.removeItem('chat_user');
+            location.reload();
+        }
+
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && document.activeElement.id === 'messageInput') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
